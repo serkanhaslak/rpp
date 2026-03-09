@@ -4,6 +4,7 @@
 // authorization code flow with PKCE (S256), token endpoint.
 
 import { randomUUID, createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 // ---------------------------------------------------------------------------
@@ -12,11 +13,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const CLIENT_ID = () => process.env.OAUTH_CLIENT_ID || '';
 const CLIENT_SECRET = () => process.env.OAUTH_CLIENT_SECRET || '';
+const TOKEN_STORE_PATH = process.env.TOKEN_STORE_PATH || '/data/tokens.json';
 
 export const isAuthEnabled = (): boolean => !!(CLIENT_ID() && CLIENT_SECRET());
 
 // ---------------------------------------------------------------------------
-// In-memory stores (reset on restart — user re-approves via OAuth)
+// Persistent token store — survives restarts via volume mount
 // ---------------------------------------------------------------------------
 
 interface StoredCode {
@@ -26,8 +28,49 @@ interface StoredCode {
   expiresAt: number;
 }
 
+interface TokenEntry {
+  token: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+interface TokenStoreData {
+  tokens: TokenEntry[];
+}
+
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60_000; // 30 days
+
+function loadTokens(): Set<string> {
+  try {
+    if (!existsSync(TOKEN_STORE_PATH)) return new Set();
+    const data: TokenStoreData = JSON.parse(readFileSync(TOKEN_STORE_PATH, 'utf-8'));
+    const now = Date.now();
+    const valid = data.tokens.filter(t => t.expiresAt > now);
+    return new Set(valid.map(t => t.token));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveTokens(tokens: Set<string>, entries: Map<string, TokenEntry>): void {
+  try {
+    const dir = TOKEN_STORE_PATH.substring(0, TOKEN_STORE_PATH.lastIndexOf('/'));
+    if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const data: TokenStoreData = { tokens: [...entries.values()] };
+    writeFileSync(TOKEN_STORE_PATH, JSON.stringify(data), 'utf-8');
+  } catch {
+    // Silent fail — falls back to in-memory only
+  }
+}
+
+const tokenEntries = new Map<string, TokenEntry>();
+const accessTokens: Set<string> = loadTokens();
+// Rebuild entries map from loaded tokens (without original timestamps, set conservative expiry)
+for (const t of accessTokens) {
+  tokenEntries.set(t, { token: t, createdAt: Date.now(), expiresAt: Date.now() + TOKEN_TTL_MS });
+}
+
 const authCodes = new Map<string, StoredCode>();
-const accessTokens = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,7 +106,16 @@ export function validateRequest(req: IncomingMessage): boolean {
   if (!isAuthEnabled()) return true;
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) return false;
-  return accessTokens.has(auth.slice(7));
+  const token = auth.slice(7);
+  if (!accessTokens.has(token)) return false;
+  const entry = tokenEntries.get(token);
+  if (entry && entry.expiresAt < Date.now()) {
+    accessTokens.delete(token);
+    tokenEntries.delete(token);
+    saveTokens(accessTokens, tokenEntries);
+    return false;
+  }
+  return true;
 }
 
 export function sendUnauthorized(req: IncomingMessage, res: ServerResponse): void {
@@ -250,15 +302,18 @@ button:hover{opacity:.85}
     // Consume code (one-time use)
     authCodes.delete(code);
 
-    // Issue access token
+    // Issue access token — persisted to volume
     const token = randomUUID();
+    const entry: TokenEntry = { token, createdAt: Date.now(), expiresAt: Date.now() + TOKEN_TTL_MS };
     accessTokens.add(token);
+    tokenEntries.set(token, entry);
+    saveTokens(accessTokens, tokenEntries);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       access_token: token,
       token_type: 'bearer',
-      expires_in: 86400, // 24h (informational — in-memory, lost on restart)
+      expires_in: Math.floor(TOKEN_TTL_MS / 1000), // 30 days
     }));
     return true;
   }

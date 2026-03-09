@@ -56,6 +56,7 @@ Note: `search_reddit` uses Google Serper (`site:reddit.com`), NOT the Reddit API
 - `LLM_ENABLE_REASONING` — enable reasoning in LLM extraction (default: `true`, set `false` to disable)
 - `OPENROUTER_BASE_URL` — override OpenRouter endpoint
 - `DEBUG_REDDIT` — set `true` for Reddit token cache debug logging
+- `TOKEN_STORE_PATH` — path to persistent token file (default: `/data/tokens.json`)
 
 ## Architecture
 
@@ -69,6 +70,7 @@ src/
 │   ├── loader.ts               # YAML tool config loader (readFileSync — incompatible with Workers runtime)
 │   ├── types.ts                # Config type definitions
 │   └── yaml/tools.yaml         # Complete tool specifications (single source of truth for tool metadata)
+├── auth.ts                     # OAuth 2.0 with persistent token store (volume-backed at /data/tokens.json)
 ├── clients/                    # External API integrations
 │   ├── search.ts               # Google Serper API (8 concurrent calls)
 │   ├── reddit.ts               # Reddit OAuth API (5 concurrent calls, module-level token cache with 60s expiry)
@@ -111,6 +113,7 @@ src/
 - **Model fallback** — `ResearchClient` tries primary model, then falls back to `RESEARCH_FALLBACK_MODEL` on failure.
 - **Scraper fallback** — `ScraperClient.scrapeWithFallback()` tries 3 modes: basic → JavaScript rendering → JavaScript + US geo-targeting.
 - **Gemini special handling** — models matching `google/gemini*` get `tools: [{type: 'google_search'}]` instead of `search_parameters`.
+- **Persistent OAuth tokens** — access tokens are stored on disk at `/data/tokens.json` (configurable via `TOKEN_STORE_PATH`). Tokens survive server restarts when a volume is mounted at `/data`. TTL is 30 days. Falls back to in-memory if disk is unavailable.
 
 **Execution pipeline** (`tools/registry.ts`): lookup tool → check capability → validate with Zod → execute handler → transform response. Every step catches errors gracefully.
 
@@ -123,6 +126,7 @@ src/
 - **All OpenAI client instances set `maxRetries: 0`** — retry logic is handled manually with custom backoff.
 - **Lazy Proxy config** — `RESEARCH`, `LLM_EXTRACTION` config objects use Proxy for deferred env reads. `resetEnvCache()` clears them for Workers env bridging.
 - **stdin disconnect detection** — explicit handlers for `stdin close/end` and `stdout EPIPE` to prevent 100% CPU when parent process disconnects.
+- **OAuth tokens require volume** — on Railway, `/data` must be a persistent volume. Without it, tokens are lost on every deploy/restart and Claude must re-authorize.
 
 ## Cloudflare Workers
 
