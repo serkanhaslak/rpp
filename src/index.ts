@@ -14,6 +14,7 @@ import { executeTool, getToolCapabilities } from './tools/registry.js';
 import { classifyError, createToolErrorFromStructured } from './utils/errors.js';
 import { SERVER, getCapabilities } from './config/index.js';
 import { initLogger } from './utils/logger.js';
+import { isAuthEnabled, handleOAuth, validateRequest, sendUnauthorized } from './auth.js';
 
 const BROKEN_PIPE_ERROR_CODES = new Set([
   'EPIPE',
@@ -284,15 +285,22 @@ if (transportMode === 'http') {
   const httpServer = createHttpServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
 
-    // Health check
+    // Health check (no auth)
     if (url.pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', name: SERVER.NAME, version: SERVER.VERSION }));
       return;
     }
 
-    // MCP endpoint
+    // OAuth routes (discovery, authorize, token)
+    if (await handleOAuth(req, res, url)) return;
+
+    // MCP endpoint — require auth when enabled
     if (url.pathname === '/mcp') {
+      if (!validateRequest(req)) {
+        sendUnauthorized(req, res);
+        return;
+      }
       // Handle DELETE — session termination
       if (req.method === 'DELETE') {
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -354,7 +362,8 @@ if (transportMode === 'http') {
   });
 
   httpServer.listen(PORT, () => {
-    console.error(`🚀 ${SERVER.NAME} v${SERVER.VERSION} listening on http://localhost:${PORT}/mcp`);
+    const authStatus = isAuthEnabled() ? 'OAuth enabled' : 'no auth';
+    console.error(`🚀 ${SERVER.NAME} v${SERVER.VERSION} listening on http://localhost:${PORT}/mcp (${authStatus})`);
   });
 } else {
   // STDIO transport (default)
