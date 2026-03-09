@@ -44,11 +44,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yigitkonur/mcp-researchpowerpack.git"
+    "url": "git+https://github.com/serkanhaslak/rpp.git"
   },
-  "homepage": "https://github.com/yigitkonur/mcp-researchpowerpack#readme",
+  "homepage": "https://github.com/serkanhaslak/rpp#readme",
   "bugs": {
-    "url": "https://github.com/yigitkonur/mcp-researchpowerpack/issues"
+    "url": "https://github.com/serkanhaslak/rpp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.1",

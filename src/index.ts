@@ -273,7 +273,7 @@ if (transportMode === 'http') {
   const { createServer: createHttpServer } = await import('node:http');
   const { randomUUID } = await import('node:crypto');
 
-  const PORT = parseInt(process.env.MCP_PORT || '3000', 10);
+  const PORT = parseInt(process.env.MCP_PORT || process.env.PORT || '3000', 10);
 
   // Map of session ID → transport + server for multi-session support
   const sessions = new Map<string, {
