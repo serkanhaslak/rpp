@@ -275,7 +275,7 @@ if (transportMode === 'http') {
   const { createServer: createHttpServer } = await import('node:http');
   const { randomUUID } = await import('node:crypto');
 
-  const PORT = parseInt(process.env.MCP_PORT || String(DEFAULT_MCP_PORT), 10);
+  const PORT = parseInt(process.env.MCP_PORT || process.env.PORT || String(DEFAULT_MCP_PORT), 10);
 
   type SessionEntry = {
     transport: InstanceType<typeof StreamableHTTPServerTransport>;
