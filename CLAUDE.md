@@ -63,6 +63,10 @@ Note: `search_x` uses Grok on OpenRouter (not the X/Twitter API directly). It le
 - `DEBUG_REDDIT` — Set `true` for Reddit token cache debug logging
 - `USE_CEREBRAS` — Set to `true` to use Cerebras (zai-glm-4.7) for content extraction instead of OpenRouter. Requires `CEREBRAS_API_KEY`.
 - `CEREBRAS_API_KEY` — API key for Cerebras cloud. Get one at https://cloud.cerebras.ai
+- `USAGE_TRACKING` — Set `false` to disable usage tracking (default: `true`)
+- `USAGE_DATA_DIR` — Directory for JSONL usage logs (default: `/data/usage`)
+- `USAGE_FLUSH_INTERVAL_MS` — Buffer flush interval in ms (default: `5000`)
+- `USAGE_MAX_BUFFER_ENTRIES` — Max in-memory buffer entries (default: `10000`)
 
 ## Architecture
 
@@ -96,6 +100,7 @@ src/
 │   ├── scrape-links.ts
 │   └── deep-research.ts
 ├── services/
+│   ├── usage-tracker.ts        # JSONL usage logging — buffered writes, daily file rotation, cost estimation
 │   ├── llm-processor.ts        # OpenRouter API integration (3 concurrent extractions, maxRetries: 0)
 │   ├── markdown-cleaner.ts     # HTML → Markdown (turndown), truncates at 512K chars, linear-time comment removal
 │   └── file-attachment.ts      # File attachment handling for deep_research (reads filesystem, supports line ranges)
@@ -121,6 +126,7 @@ src/
 - **Scraper fallback** — `ScraperClient.scrapeWithFallback()` tries 3 modes: basic → JavaScript rendering → JavaScript + US geo-targeting.
 - **Gemini special handling** — models matching `google/gemini*` get `tools: [{type: 'google_search'}]` instead of `search_parameters`.
 - **HTTP session management** — LRU eviction when `MAX_SESSIONS` reached, 1-min reap interval for idle sessions beyond TTL. Evicts rather than rejects (503) for better UX.
+- **Usage tracking** — JSONL daily files at `/data/usage/`. Buffered in-memory (5s flush interval), fire-and-forget writes. Tracks tool name, duration, tokens, estimated cost. Graceful degradation to in-memory only when disk unavailable.
 
 **Execution pipeline** (`tools/registry.ts`): lookup tool → check capability → validate with Zod → execute handler → transform response. Every step catches errors gracefully.
 

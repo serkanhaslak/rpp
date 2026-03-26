@@ -14,6 +14,7 @@ import { executeTool, getToolCapabilities } from './tools/registry.js';
 import { classifyError, createToolErrorFromStructured } from './utils/errors.js';
 import { SERVER, getCapabilities } from './config/index.js';
 import { initLogger } from './utils/logger.js';
+import { initUsageTracker, shutdownUsageTracker } from './services/usage-tracker.js';
 
 const BROKEN_PIPE_ERROR_CODES = new Set([
   'EPIPE',
@@ -121,6 +122,7 @@ const server = new Server(
 );
 
 initLogger(server);
+initUsageTracker();
 registerToolHandlers(server);
 
 // ============================================================================
@@ -140,6 +142,7 @@ async function gracefulShutdown(exitCode: number): Promise<void> {
   isShuttingDown = true;
 
   try {
+    shutdownUsageTracker();
     await server.close();
     safeStderrWrite(`[MCP Server] Server closed at ${new Date().toISOString()}`);
   } catch (closeError) {

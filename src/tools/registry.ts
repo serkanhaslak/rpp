@@ -9,6 +9,7 @@ import { McpError, ErrorCode as McpErrorCode } from '@modelcontextprotocol/sdk/t
 import { parseEnv, getCapabilities, getMissingEnvMessage, type Capabilities } from '../config/index.js';
 import { classifyError, createToolErrorFromStructured } from '../utils/errors.js';
 import { sanitizeForJson } from '../utils/sanitize.js';
+import { trackToolCall } from '../services/usage-tracker.js';
 
 // Import schemas
 import { deepResearchParamsSchema, type DeepResearchParams } from '../schemas/deep-research.js';
@@ -375,14 +376,17 @@ export async function executeTool(
   const validation = validateToolParams(tool, args);
   if ('content' in validation) return validation;
 
+  const startTime = Date.now();
   let result: string;
   try {
     result = await tool.handler(validation.params);
   } catch (error) {
     const structured = classifyError(error);
+    trackToolCall(name, Date.now() - startTime, false, undefined, structured.code);
     return createToolErrorFromStructured(structured);
   }
 
+  trackToolCall(name, Date.now() - startTime, !result.includes('# ❌'), result);
   return buildToolResult(result, tool);
 }
 
