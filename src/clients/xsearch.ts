@@ -29,13 +29,7 @@ const REQUEST_DEADLINE_MS = 60_000 as const;
 const STALL_TIMEOUT_MS = 45_000 as const;
 const TEMPERATURE = 0.1 as const;
 
-const SYSTEM_PROMPT = `You are an X/Twitter search assistant. Search X for the user's query and return comprehensive results.
-For each post found, format as:
-- **@handle** (date): post text [likes: N, retweets: N]
-  URL: direct link
-
-Return ALL posts found. Be comprehensive. Include engagement metrics when available. Sort by relevance.
-If no results found, say so clearly.`;
+const SYSTEM_PROMPT = `X search. Per post: @handle (date): text [likes,RTs] URL. All results, by relevance.`;
 
 // ── Interfaces ──
 
@@ -90,7 +84,7 @@ export class XSearchClient {
         { role: 'user', content: query },
       ],
       temperature: TEMPERATURE,
-      max_tokens: 4096,
+      max_tokens: 2048,
       plugins: [{ id: 'web' }],
     };
 
