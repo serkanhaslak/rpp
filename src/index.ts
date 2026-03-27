@@ -15,6 +15,7 @@ import { classifyError, createToolErrorFromStructured } from './utils/errors.js'
 import { SERVER, getCapabilities } from './config/index.js';
 import { initLogger } from './utils/logger.js';
 import { initUsageTracker, shutdownUsageTracker } from './services/usage-tracker.js';
+import { isAuthEnabled, validateRequest, sendUnauthorized, handleOAuth } from './auth.js';
 
 const BROKEN_PIPE_ERROR_CODES = new Set([
   'EPIPE',
@@ -409,6 +410,9 @@ if (transportMode === 'http') {
   const httpServer = createHttpServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
 
+    // OAuth routes (discovery, authorize, token)
+    if (isAuthEnabled() && await handleOAuth(req, res, url)) return;
+
     // Health check
     if (url.pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -418,6 +422,10 @@ if (transportMode === 'http') {
 
     // MCP endpoint
     if (url.pathname === '/mcp') {
+      if (isAuthEnabled() && !validateRequest(req)) {
+        sendUnauthorized(req, res);
+        return;
+      }
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
       switch (req.method) {
