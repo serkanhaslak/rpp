@@ -1,18 +1,26 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import type { Env } from './env.js';
+import type { Env, ResolvedEnv } from './env.js';
+import { resolveEnv } from './env.js';
 
 import { healthRoutes } from './routes/health.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { oauthRoutes } from './routes/oauth.js';
 import { discoveryRoutes } from './routes/discovery.js';
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: { resolved: ResolvedEnv } }>();
 
 // Middleware
 app.use('*', logger());
 app.use('*', cors());
+
+// Resolve Secrets Store bindings to plain strings (once per request)
+app.use('*', async (c, next) => {
+  const resolved = await resolveEnv(c.env);
+  c.set('resolved', resolved);
+  return next();
+});
 
 // Routes
 app.route('/', discoveryRoutes);

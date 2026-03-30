@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { OpenRouterClient, type XSearchQuery, type XSearchResult } from '../clients/openrouter.js';
 import { formatSuccess, formatError } from '../lib/response.js';
 import { classifyError } from '../lib/errors.js';
@@ -73,7 +73,7 @@ export const xSearchTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   capability: 'xSearch',
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     try {
       const { queries, from_handles, exclude_handles, from_date, to_date } = params;
 

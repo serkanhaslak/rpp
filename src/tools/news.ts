@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { SerperClient, type NewsSearchResult } from '../clients/serper.js';
 import { formatSuccess, formatError, countMapValues } from '../lib/response.js';
 import { classifyError } from '../lib/errors.js';
@@ -57,7 +57,7 @@ export const newsTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   capability: 'search',
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     try {
       const limited = params.queries.slice(0, 30);
       const client = new SerperClient(env.SERPER_API_KEY!);

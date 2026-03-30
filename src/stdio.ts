@@ -14,10 +14,10 @@ import {
 
 import { getAllTools, executeTool } from './tools/index.js';
 import { getCapabilities } from './env.js';
-import type { Env } from './env.js';
+import type { ResolvedEnv } from './env.js';
 
 // Build Env-like object from process.env for STDIO mode
-function buildEnvFromProcessEnv(): Env {
+function buildEnvFromProcessEnv(): ResolvedEnv {
   return {
     // KV not available in STDIO — tools that need KV will gracefully degrade
     OAUTH_TOKENS: null as unknown as KVNamespace,

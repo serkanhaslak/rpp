@@ -1,12 +1,12 @@
 import type { z } from 'zod';
-import type { Env, Capabilities } from '../env.js';
+import type { ResolvedEnv, Capabilities } from '../env.js';
 
 export interface ToolDefinition<TSchema extends z.ZodType = z.ZodType> {
   name: string;
   description: string;
   inputSchema: TSchema;
   capability?: keyof Capabilities;
-  handler: (params: z.infer<TSchema>, env: Env) => Promise<ToolResult>;
+  handler: (params: z.infer<TSchema>, env: ResolvedEnv) => Promise<ToolResult>;
 }
 
 export interface ToolResult {

@@ -1,16 +1,59 @@
 name = "research-mcp"
+account_id = "0a1119da859d704a3342942f3de6cac2"
 main = "src/worker.ts"
 compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 # KV Namespaces
 [[kv_namespaces]]
 binding = "OAUTH_TOKENS"
-id = "placeholder_oauth_tokens_kv_id"
+id = "e303b05e12614e0aa2b620946d91134b"
 
 [[kv_namespaces]]
 binding = "MCP_SESSIONS"
-id = "placeholder_mcp_sessions_kv_id"
+id = "b10c0fad3ae04d26a733e5eaa49cdbae"
+
+# Secrets Store bindings
+[[secrets_store_secrets]]
+binding = "SERPER_API_KEY"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "SERPER_API_KEY"
+
+[[secrets_store_secrets]]
+binding = "OPENROUTER_API_KEY"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "OPENROUTER_API_KEY"
+
+[[secrets_store_secrets]]
+binding = "SCRAPEDO_API_KEY"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "SCRAPEDO_API_KEY"
+
+[[secrets_store_secrets]]
+binding = "REDDIT_CLIENT_ID"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "REDDIT_CLIENT_ID"
+
+[[secrets_store_secrets]]
+binding = "REDDIT_CLIENT_SECRET"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "REDDIT_CLIENT_SECRET"
+
+[[secrets_store_secrets]]
+binding = "CEREBRAS_API_KEY"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "CEREBRAS_API_KEY"
+
+[[secrets_store_secrets]]
+binding = "OAUTH_CLIENT_ID"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "OAUTH_CLIENT_ID"
+
+[[secrets_store_secrets]]
+binding = "OAUTH_CLIENT_SECRET"
+store_id = "89321494a85d4b7c917566eac5cbc696"
+secret_name = "OAUTH_CLIENT_SECRET"
 
 # Observability (replaces custom usage tracker)
 [observability]
@@ -29,7 +72,7 @@ API_TIMEOUT_MS = "300000"
 
 # Custom domain
 [[routes]]
-pattern = "research.pragmaticgrowth.com"
+pattern = "research-mcp.pragmaticgrowth.com"
 custom_domain = true
 
 # Dev

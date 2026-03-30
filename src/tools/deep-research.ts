@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { OpenRouterClient, type ResearchResponse } from '../clients/openrouter.js';
 import { pMap } from '../lib/concurrency.js';
 import { formatSuccess, formatError, formatBatchHeader, formatDuration, truncateText, TOKEN_BUDGET } from '../lib/response.js';
@@ -68,7 +68,7 @@ export const deepResearchTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   capability: 'deepResearch',
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     const startTime = Date.now();
     const questions = params.questions || [];
 

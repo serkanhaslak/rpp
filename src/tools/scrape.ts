@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { ScraperClient } from '../clients/scraper.js';
 import { OpenRouterClient } from '../clients/openrouter.js';
 import { htmlToMarkdown, removeMetaTags } from '../lib/markdown.js';
@@ -50,7 +50,7 @@ export const scrapeTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   capability: 'scraping',
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     const startTime = Date.now();
 
     if (!params.urls || params.urls.length === 0) {

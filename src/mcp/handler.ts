@@ -1,4 +1,4 @@
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { getCapabilities } from '../env.js';
 import { createSession, touchSession } from './session.js';
 import { jsonRpcResponse, jsonRpcError, MCP_ERROR } from './protocol.js';
@@ -17,7 +17,7 @@ export async function handleMcpRequest(
     id?: string | number;
   },
   sessionId: string | undefined,
-  env: Env
+  env: ResolvedEnv
 ): Promise<McpResult> {
   const { method, params, id } = body;
   const ttlSeconds = parseInt(env.SESSION_TTL_SECONDS, 10) || 1800;

@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { SerperClient } from '../clients/serper.js';
 import {
   aggregateAndRank,
@@ -30,7 +30,7 @@ export const webSearchTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   capability: 'search',
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     const startTime = Date.now();
     try {
       const client = new SerperClient(env.SERPER_API_KEY!);

@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import {
   RedditClient,
   calculateCommentAllocation,
@@ -82,7 +82,7 @@ export const redditPostTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   capability: 'reddit',
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     try {
       const { urls, fetch_comments, max_comments, sort, use_llm, what_to_extract } = params;
 

@@ -1,11 +1,59 @@
 import { Hono } from 'hono';
-import type { Env } from '../env.js';
+import type { Env, ResolvedEnv } from '../env.js';
 import { verifyPKCE, generateToken } from '../oauth/pkce.js';
 
-export const oauthRoutes = new Hono<{ Bindings: Env }>();
+export const oauthRoutes = new Hono<{ Bindings: Env; Variables: { resolved: ResolvedEnv } }>();
 
-// Dynamic client registration (RFC 7591) — required by MCP spec
+/**
+ * Ensure the pre-shared client (from OAUTH_CLIENT_ID env) is registered in KV.
+ * Called lazily on first authorize/register — idempotent.
+ */
+async function ensurePreSharedClient(env: ResolvedEnv): Promise<void> {
+  if (!env.OAUTH_CLIENT_ID) return;
+  const existing = await env.OAUTH_TOKENS.get(`client:${env.OAUTH_CLIENT_ID}`);
+  if (existing) return;
+
+  await env.OAUTH_TOKENS.put(
+    `client:${env.OAUTH_CLIENT_ID}`,
+    JSON.stringify({
+      client_id: env.OAUTH_CLIENT_ID,
+      client_secret: env.OAUTH_CLIENT_SECRET || '',
+      redirect_uris: [],
+      client_name: 'Pre-shared MCP Client',
+      created_at: new Date().toISOString(),
+    }),
+    { expirationTtl: 60 * 60 * 24 * 365 }
+  );
+}
+
+// Dynamic client registration (RFC 7591)
+// When OAUTH_CLIENT_ID is set, registration is disabled — use pre-shared credentials instead.
 oauthRoutes.post('/register', async (c) => {
+  // If pre-shared credentials are configured, block open registration
+  const renv = c.get("resolved");
+    if (renv.OAUTH_CLIENT_ID) {
+    // Only allow if the request provides the correct client_secret as proof
+    const body = await c.req.json();
+    if (body.client_secret !== renv.OAUTH_CLIENT_SECRET) {
+      return c.json(
+        { error: 'invalid_client', error_description: 'Registration is restricted. Use the pre-shared client credentials.' },
+        403
+      );
+    }
+
+    // Return the pre-shared client info
+    await ensurePreSharedClient(renv);
+    return c.json(
+      {
+        client_id: renv.OAUTH_CLIENT_ID,
+        client_name: 'Pre-shared MCP Client',
+        redirect_uris: [],
+      },
+      201
+    );
+  }
+
+  // Open registration (no OAUTH_CLIENT_ID configured — fallback)
   const body = await c.req.json();
   const clientId = crypto.randomUUID();
 
@@ -17,7 +65,7 @@ oauthRoutes.post('/register', async (c) => {
       client_name: body.client_name || 'MCP Client',
       created_at: new Date().toISOString(),
     }),
-    { expirationTtl: 60 * 60 * 24 * 365 } // 1 year
+    { expirationTtl: 60 * 60 * 24 * 365 }
   );
 
   return c.json(
@@ -30,10 +78,10 @@ oauthRoutes.post('/register', async (c) => {
   );
 });
 
-// Shared authorize logic — validate client, auto-approve, redirect with auth code
+// Shared authorize logic
 async function handleAuthorize(
   params: Record<string, string | undefined>,
-  kv: KVNamespace,
+  env: ResolvedEnv,
 ) {
   const { client_id, redirect_uri, code_challenge, code_challenge_method, state, scope } = params;
 
@@ -45,8 +93,11 @@ async function handleAuthorize(
     return { error: 'invalid_request', error_description: 'Only S256 supported', status: 400 as const };
   }
 
-  // Validate client_id is registered (RFC 6749 Section 4.1.3)
-  const clientRaw = await kv.get(`client:${client_id}`, 'json') as {
+  // Ensure pre-shared client is registered
+  await ensurePreSharedClient(env);
+
+  // Validate client_id is registered
+  const clientRaw = await env.OAUTH_TOKENS.get(`client:${client_id}`, 'json') as {
     redirect_uris?: string[];
   } | null;
 
@@ -54,8 +105,7 @@ async function handleAuthorize(
     return { error: 'invalid_client', error_description: 'Unknown client_id', status: 400 as const };
   }
 
-  // Validate redirect_uri against registered URIs (RFC 6749 Section 3.1.2.3)
-  // If client registered with redirect_uris, enforce; otherwise allow any (open registration)
+  // Validate redirect_uri if client has registered URIs
   if (clientRaw.redirect_uris && clientRaw.redirect_uris.length > 0) {
     if (!clientRaw.redirect_uris.includes(redirect_uri)) {
       return { error: 'invalid_request', error_description: 'redirect_uri not registered', status: 400 as const };
@@ -64,7 +114,7 @@ async function handleAuthorize(
 
   const code = crypto.randomUUID();
 
-  await kv.put(
+  await env.OAUTH_TOKENS.put(
     `code:${code}`,
     JSON.stringify({
       client_id,
@@ -86,17 +136,17 @@ async function handleAuthorize(
 
 // GET /oauth/authorize
 oauthRoutes.get('/authorize', async (c) => {
-  const result = await handleAuthorize(c.req.query(), c.env.OAUTH_TOKENS);
+  const result = await handleAuthorize(c.req.query(), c.get('resolved'));
   if ('error' in result) {
     return c.json({ error: result.error, error_description: result.error_description }, result.status);
   }
   return c.redirect(result.redirect, 302);
 });
 
-// POST /oauth/authorize — Form-based approval
+// POST /oauth/authorize
 oauthRoutes.post('/authorize', async (c) => {
   const body = await c.req.parseBody();
-  const result = await handleAuthorize(body as Record<string, string>, c.env.OAUTH_TOKENS);
+  const result = await handleAuthorize(body as Record<string, string>, c.get('resolved'));
   if ('error' in result) {
     return c.json({ error: result.error, error_description: result.error_description }, result.status);
   }
@@ -106,7 +156,7 @@ oauthRoutes.post('/authorize', async (c) => {
 // POST /oauth/token — Exchange code for access token
 oauthRoutes.post('/token', async (c) => {
   const body = await c.req.parseBody();
-  const { grant_type, code, code_verifier, client_id, redirect_uri } = body as Record<string, string>;
+  const { grant_type, code, code_verifier, client_id, client_secret, redirect_uri } = body as Record<string, string>;
 
   if (grant_type !== 'authorization_code') {
     return c.json({ error: 'unsupported_grant_type' }, 400);
@@ -117,6 +167,17 @@ oauthRoutes.post('/token', async (c) => {
       { error: 'invalid_request', error_description: 'Missing code or code_verifier' },
       400
     );
+  }
+
+  // If pre-shared credentials are configured, validate client_secret
+  const resolved = c.get("resolved");
+  if (resolved.OAUTH_CLIENT_SECRET && client_secret) {
+    if (client_secret !== resolved.OAUTH_CLIENT_SECRET) {
+      return c.json(
+        { error: 'invalid_client', error_description: 'Invalid client_secret' },
+        401
+      );
+    }
   }
 
   const storedRaw = (await c.env.OAUTH_TOKENS.get(`code:${code}`, 'json')) as {
@@ -137,7 +198,7 @@ oauthRoutes.post('/token', async (c) => {
   // Delete code immediately (one-time use)
   await c.env.OAUTH_TOKENS.delete(`code:${code}`);
 
-  // Validate client_id matches the one that requested the code (RFC 6749 Section 4.1.3)
+  // Validate client_id matches
   if (client_id && client_id !== storedRaw.client_id) {
     return c.json(
       { error: 'invalid_grant', error_description: 'client_id mismatch' },
@@ -145,7 +206,7 @@ oauthRoutes.post('/token', async (c) => {
     );
   }
 
-  // Validate redirect_uri matches (RFC 6749 Section 4.1.3)
+  // Validate redirect_uri matches
   if (redirect_uri && redirect_uri !== storedRaw.redirect_uri) {
     return c.json(
       { error: 'invalid_grant', error_description: 'redirect_uri mismatch' },
@@ -184,7 +245,7 @@ oauthRoutes.post('/token', async (c) => {
   });
 });
 
-// POST /oauth/revoke — Revoke a token
+// POST /oauth/revoke
 oauthRoutes.post('/revoke', async (c) => {
   const body = await c.req.parseBody();
   const token = body.token as string;

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env } from '../env.js';
+import type { Env, ResolvedEnv } from '../env.js';
 import { requireOAuth } from '../middleware/auth.js';
 import { handleMcpRequest } from '../mcp/handler.js';
 import { getSession, deleteSession } from '../mcp/session.js';
@@ -7,7 +7,7 @@ import { jsonRpcError, MCP_ERROR } from '../mcp/protocol.js';
 
 export const mcpRoutes = new Hono<{
   Bindings: Env;
-  Variables: { authenticated: boolean };
+  Variables: { authenticated: boolean; resolved: ResolvedEnv };
 }>();
 
 // Auth on all MCP routes
@@ -15,7 +15,6 @@ mcpRoutes.use('*', requireOAuth);
 
 // POST /mcp — Main JSON-RPC handler
 mcpRoutes.post('/', async (c) => {
-  // Parse JSON with proper error handling (JSON-RPC -32700)
   let body: { jsonrpc: string; method: string; params?: Record<string, unknown>; id?: string | number };
   try {
     body = await c.req.json();
@@ -26,11 +25,11 @@ mcpRoutes.post('/', async (c) => {
     );
   }
 
+  const env = c.get('resolved');
   const sessionId = c.req.header('mcp-session-id');
 
-  // Enforce session for non-initialize methods
   if (body.method !== 'initialize' && sessionId) {
-    const session = await getSession(c.env.MCP_SESSIONS, sessionId);
+    const session = await getSession(env.MCP_SESSIONS, sessionId);
     if (!session) {
       return c.json(
         jsonRpcError(body.id, MCP_ERROR.INVALID_REQUEST, 'Session expired or invalid. Send initialize to create a new session.'),
@@ -39,15 +38,12 @@ mcpRoutes.post('/', async (c) => {
     }
   }
 
-  const result = await handleMcpRequest(body, sessionId, c.env);
+  const result = await handleMcpRequest(body, sessionId, env);
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-
   if (result.sessionId) {
     headers['mcp-session-id'] = result.sessionId;
   }
-
-  // Notifications have no response body
   if (result.body === null) {
     return new Response(null, { status: 204, headers });
   }
@@ -62,7 +58,8 @@ mcpRoutes.get('/', async (c) => {
     return c.json({ error: 'Missing mcp-session-id header' }, 400);
   }
 
-  const session = await getSession(c.env.MCP_SESSIONS, sessionId);
+  const env = c.get('resolved');
+  const session = await getSession(env.MCP_SESSIONS, sessionId);
   if (!session) {
     return c.json({ error: 'Session not found or expired' }, 404);
   }
@@ -78,9 +75,10 @@ mcpRoutes.get('/', async (c) => {
 
 // DELETE /mcp — Terminate session
 mcpRoutes.delete('/', async (c) => {
+  const env = c.get('resolved');
   const sessionId = c.req.header('mcp-session-id');
   if (sessionId) {
-    await deleteSession(c.env.MCP_SESSIONS, sessionId);
+    await deleteSession(env.MCP_SESSIONS, sessionId);
   }
   return c.json({ success: true });
 });

@@ -1,4 +1,4 @@
-import type { Env, Capabilities } from '../env.js';
+import type { ResolvedEnv, Capabilities } from '../env.js';
 import type { ToolDefinition, ToolResult } from './types.js';
 import { zodToInputSchema } from './types.js';
 
@@ -39,7 +39,7 @@ export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   capabilities: Capabilities,
-  env: Env
+  env: ResolvedEnv
 ): Promise<ToolResult> {
   const tool = toolMap.get(name);
   if (!tool) {

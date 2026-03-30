@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
-import type { Env } from '../env.js';
+import type { ResolvedEnv } from '../env.js';
 import { HackerNewsClient, type HNSearchResult } from '../clients/hackernews.js';
 import { formatSuccess, formatError, countMapValues } from '../lib/response.js';
 import { classifyError } from '../lib/errors.js';
@@ -75,7 +75,7 @@ export const hackernewsTool: ToolDefinition<typeof schema> = {
   inputSchema: schema,
   // No capability needed — free API, no key required
 
-  async handler(params, env: Env): Promise<ToolResult> {
+  async handler(params, env: ResolvedEnv): Promise<ToolResult> {
     try {
       const limited = params.queries.slice(0, 30);
       const client = new HackerNewsClient();
