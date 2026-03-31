@@ -20,7 +20,7 @@ export async function handleMcpRequest(
   env: ResolvedEnv
 ): Promise<McpResult> {
   const { method, params, id } = body;
-  const ttlSeconds = parseInt(env.SESSION_TTL_SECONDS, 10) || 1800;
+  const ttlSeconds = parseInt(env.SESSION_TTL_SECONDS, 10) || 2592000;
 
   switch (method) {
     case 'initialize': {

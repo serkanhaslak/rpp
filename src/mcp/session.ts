@@ -17,7 +17,7 @@ export async function createSession(
       lastActivity: now,
       protocolVersion: opts.protocolVersion,
     } satisfies SessionInfo),
-    { expirationTtl: opts.ttlSeconds || 1800 }
+    { expirationTtl: opts.ttlSeconds || 2592000 }
   );
 }
 
@@ -35,7 +35,7 @@ export async function getSession(
 export async function touchSession(
   kv: KVNamespace,
   sessionId: string,
-  ttlSeconds: number = 1800
+  ttlSeconds: number = 2592000
 ): Promise<void> {
   const session = await getSession(kv, sessionId);
   if (session) {

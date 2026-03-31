@@ -53,7 +53,7 @@ Note: `search_x` uses Grok on OpenRouter (not the X/Twitter API directly). It le
 - `RESEARCH_MODEL` — Primary deep research model (default: `x-ai/grok-4-fast`)
 - `RESEARCH_FALLBACK_MODEL` — Fallback when primary fails (default: `google/gemini-2.5-flash`)
 - `LLM_EXTRACTION_MODEL` — Extraction model (default: `openai/gpt-oss-120b:nitro`)
-- `SESSION_TTL_MS` — HTTP session idle timeout before reaping (default: 1,800,000 / 30min, minimum: 60,000 / 1min)
+- `SESSION_TTL_MS` — HTTP session idle timeout before reaping (default: 2,592,000,000 / 30 days, minimum: 60,000 / 1min)
 - `MAX_SESSIONS` — Maximum concurrent HTTP sessions; oldest evicted when exceeded (default: 100, minimum: 1)
 - `API_TIMEOUT_MS` — Request timeout (default: 1,800,000 / 30min)
 - `DEFAULT_REASONING_EFFORT` — `low|medium|high` (default: `high`)
