@@ -97,6 +97,8 @@ export interface ResearchParams {
   readonly maxSearchResults?: number;
   readonly maxTokens?: number;
   readonly temperature?: number;
+  /** When true, skip web search — use for grounded synthesis over pre-fetched content */
+  readonly disableSearch?: boolean;
 }
 
 export interface XSearchQuery {
@@ -182,7 +184,7 @@ export class OpenRouterClient {
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: question });
 
-    const opts = { temperature, reasoningEffort, maxTokens, maxSearchResults };
+    const opts = { temperature, reasoningEffort, maxTokens, maxSearchResults, disableSearch: params.disableSearch };
 
     // Try primary model
     const primaryResult = await this.executeResearch(this.model, messages, opts, signal);
@@ -203,7 +205,7 @@ export class OpenRouterClient {
   private async executeResearch(
     model: string,
     messages: ReadonlyArray<{ role: 'system' | 'user'; content: string }>,
-    opts: { temperature: number; reasoningEffort: string; maxTokens: number; maxSearchResults: number },
+    opts: { temperature: number; reasoningEffort: string; maxTokens: number; maxSearchResults: number; disableSearch?: boolean },
     signal?: AbortSignal,
   ): Promise<ResearchResponse> {
     const payload = this.buildResearchPayload(model, messages, opts);
@@ -281,8 +283,13 @@ export class OpenRouterClient {
   private buildResearchPayload(
     model: string,
     messages: ReadonlyArray<{ role: string; content: string }>,
-    opts: { temperature: number; reasoningEffort: string; maxTokens: number; maxSearchResults: number },
+    opts: { temperature: number; reasoningEffort: string; maxTokens: number; maxSearchResults: number; disableSearch?: boolean },
   ): Record<string, unknown> {
+    // When disableSearch is true, skip web search (for grounded synthesis over pre-fetched content)
+    if (opts.disableSearch) {
+      return { model, messages, temperature: opts.temperature,
+        max_completion_tokens: opts.maxTokens };
+    }
     if (isGeminiStyleModel(model)) {
       return { model, messages, temperature: opts.temperature, max_tokens: opts.maxTokens,
         tools: [{ type: 'google_search', googleSearch: {} }] };

@@ -123,7 +123,25 @@ function buildPrompt(content: string, instruction?: string): string {
     ? content.substring(0, MAX_INPUT_CHARS) + '\n\n[Content truncated]'
     : content;
 
-  return instruction
-    ? `Extract and clean the following content. Focus on: ${instruction}\n\nContent:\n${truncated}`
-    : `Clean and extract the main content. Remove navigation, ads, irrelevant elements:\n\n${truncated}`;
+  if (instruction) {
+    return `You are a precision content extractor. Extract information from the document below.
+
+TASK: ${instruction}
+
+RULES:
+- Extract ONLY information present in the document — never hallucinate or add external knowledge
+- Use bullet points for lists, markdown tables for comparisons/structured data
+- Include specific numbers, dates, versions, and data points when present
+- Attribute claims to their source when the document does so
+- Skip navigation, ads, headers, footers, and boilerplate
+- Start immediately with extracted content — no preamble
+
+DOCUMENT:
+${truncated}`;
+  }
+
+  return `Extract the main content from this document. Remove navigation, ads, sidebars, and boilerplate. Preserve structure (headings, lists, tables). Start with content directly — no preamble.
+
+DOCUMENT:
+${truncated}`;
 }

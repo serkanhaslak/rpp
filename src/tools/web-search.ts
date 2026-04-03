@@ -7,6 +7,9 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult } from './types.js';
 import type { ResolvedEnv } from '../env.js';
 import { SerperClient } from '../clients/serper.js';
+import { ScraperClient } from '../clients/scraper.js';
+import { extractContent } from '../lib/extraction.js';
+import { htmlToMarkdown } from '../lib/markdown.js';
 import {
   aggregateAndRank,
   buildUrlLookup,
@@ -14,8 +17,13 @@ import {
   generateEnhancedOutput,
   markConsensus,
 } from '../lib/url-ranking.js';
+import { pMap } from '../lib/concurrency.js';
 import { formatSuccess, formatError, formatDuration } from '../lib/response.js';
 import { classifyError } from '../lib/errors.js';
+
+const SUMMARIZE_TOP_N = 5;
+const SUMMARIZE_MAX_CONTENT = 6000;
+const SUMMARIZE_SCRAPE_TIMEOUT = 15;
 
 const schema = z.object({
   keywords: z.array(z.string().min(1).max(500)).min(3).max(100)
@@ -73,8 +81,51 @@ export const webSearchTool: ToolDefinition<typeof schema> = {
         if (i < queriesToShow.length - 1) md += '---\n\n';
       }
 
-      const topUrls = (consensusUrls.length > 0 ? consensusUrls : aggregation.rankedUrls)
-        .slice(0, 5).map(u => `"${u.url}"`).join(', ');
+      // Auto-summarize: scrape top results and synthesize when Scraper + extraction are available
+      const topRankedUrls = (consensusUrls.length > 0 ? consensusUrls : aggregation.rankedUrls).slice(0, SUMMARIZE_TOP_N);
+      let summarySection = '';
+
+      if (env.SCRAPEDO_API_KEY && (env.AI || env.OPENROUTER_API_KEY) && topRankedUrls.length > 0) {
+        try {
+          const scraper = new ScraperClient(env.SCRAPEDO_API_KEY);
+          const scraped = await scraper.scrapeMultiple(
+            topRankedUrls.map(u => u.url),
+            { timeout: SUMMARIZE_SCRAPE_TIMEOUT },
+          );
+          const successfulScrapes = scraped.filter(s => !s.error && s.statusCode >= 200 && s.statusCode < 300 && s.content);
+
+          if (successfulScrapes.length > 0) {
+            const keyword_context = params.keywords.slice(0, 5).join(', ');
+            const extractionInstruction = `Extract the most important facts, findings, and actionable insights related to: "${keyword_context}". Be concise and specific. Focus on data points, comparisons, and recommendations.`;
+
+            const extracted = await pMap(successfulScrapes, async (result) => {
+              try {
+                let content = htmlToMarkdown(result.content);
+                if (content.length > SUMMARIZE_MAX_CONTENT * 2) {
+                  content = content.substring(0, SUMMARIZE_MAX_CONTENT * 2);
+                }
+                const ex = await extractContent(env, content, extractionInstruction, 2048);
+                return ex.processed ? { url: result.url, content: ex.content } : null;
+              } catch { return null; }
+            }, 3);
+
+            const validExtracts = extracted.filter((e): e is { url: string; content: string } => e !== null);
+            if (validExtracts.length > 0) {
+              summarySection = '\n## Key Findings (auto-extracted from top results)\n\n';
+              for (const ex of validExtracts) {
+                summarySection += `### ${ex.url}\n${ex.content}\n\n`;
+              }
+              summarySection += '---\n';
+            }
+          }
+        } catch {
+          // Auto-summarize failed silently — search results still available
+        }
+      }
+
+      md += summarySection;
+
+      const topUrls = topRankedUrls.slice(0, 5).map(u => `"${u.url}"`).join(', ');
 
       md += '\n\n---\n\n**Next Steps (DO ALL — research is a loop, not a single call):**\n';
       md += `1. MUST DO: scrape_links(urls=[${topUrls}], use_llm=true, what_to_extract="Extract key findings | recommendations | data | evidence | comparisons") — searching only gives URLs, scraping gets the actual content\n`;
@@ -82,7 +133,7 @@ export const webSearchTool: ToolDefinition<typeof schema> = {
       md += '3. ITERATE: If results are insufficient, search again with different keywords from "Related" suggestions above\n';
       md += '4. SYNTHESIZE (only after scraping + Reddit): deep_research(questions=[{question: "Based on scraped content and community feedback..."}])\n';
 
-      md += `\n---\n*${formatDuration(Date.now() - startTime)} | ${aggregation.totalUniqueUrls} unique URLs | ${consensusUrls.length} consensus*`;
+      md += `\n---\n*${formatDuration(Date.now() - startTime)} | ${aggregation.totalUniqueUrls} unique URLs | ${consensusUrls.length} consensus${summarySection ? ' | auto-summarized' : ''}*`;
 
       return { content: [{ type: 'text', text: md }] };
     } catch (error) {
