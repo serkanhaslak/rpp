@@ -19,7 +19,7 @@ export interface ExtractionResult {
 
 /**
  * Extract/summarize content using the best available backend.
- * Priority: Workers AI (on-infra, cheap) → OpenRouter (external, fallback).
+ * Priority: OpenRouter (MiniMax M2.7 BYOK, $0) → Workers AI (fallback).
  * Returns original content if all backends fail (never throws).
  */
 export async function extractContent(
@@ -32,12 +32,13 @@ export async function extractContent(
     return { content: content || '', processed: false, error: 'Empty content' };
   }
 
-  if (env.AI) {
-    return extractWithWorkersAI(env.AI, content, instruction, maxTokens, env);
-  }
-
+  // Prefer OpenRouter (MiniMax M2.7 BYOK = $0) over Workers AI
   if (env.OPENROUTER_API_KEY) {
     return extractWithOpenRouter(env, content, instruction, maxTokens);
+  }
+
+  if (env.AI) {
+    return extractWithWorkersAI(env.AI, content, instruction, maxTokens, env);
   }
 
   return { content, processed: false, error: 'No extraction backend available (no AI binding or OPENROUTER_API_KEY)' };

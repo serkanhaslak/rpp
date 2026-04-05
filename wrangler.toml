@@ -73,7 +73,7 @@ MAX_SESSIONS = "100"
 DEFAULT_REASONING_EFFORT = "high"
 DEFAULT_MAX_URLS = "100"
 API_TIMEOUT_MS = "300000"
-LLM_EXTRACTION_MODEL = "@cf/zai-org/glm-4.7-flash"
+LLM_EXTRACTION_MODEL = "minimax/minimax-m2.7"
 LLM_EXTRACTION_FALLBACK_MODEL = "@cf/openai/gpt-oss-120b"
 
 # Custom domain

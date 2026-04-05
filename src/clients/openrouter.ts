@@ -163,7 +163,7 @@ export class OpenRouterClient {
     });
     this.model = options.model || 'x-ai/grok-4.1-fast';
     this.fallbackModel = options.fallbackModel || 'google/gemini-2.5-flash';
-    this.extractionModel = options.extractionModel || 'openai/gpt-oss-120b:nitro';
+    this.extractionModel = options.extractionModel || 'minimax/minimax-m2.7';
     this.reasoningEffort = options.reasoningEffort || 'high';
     this.maxUrls = options.maxUrls || 100;
   }
